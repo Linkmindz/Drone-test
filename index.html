@@ -1,42 +1,15 @@
 <!doctype html>
 <html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Camera Test</title>
-    <style>
-      body { margin:0; background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-      #hud { position:fixed; top:12px; left:12px; right:12px; z-index:9; background:rgba(0,0,0,.65); padding:10px 12px; border-radius:12px; }
-      button { margin-top:8px; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.12); color:#fff; }
-      video { width:100vw; height:100vh; object-fit:cover; }
-    </style>
-  </head>
-  <body>
-    <div id="hud">
-      <div><b>Camera Test</b></div>
-      <div id="status">Tap Start.</div>
-      <button id="start">Start Camera</button>
-    </div>
-    <video id="v" autoplay playsinline></video>
-
-    <script>
-      const status = document.getElementById("status");
-      const btn = document.getElementById("start");
-      const v = document.getElementById("v");
-
-      btn.onclick = async () => {
-        try {
-          status.textContent = "Requesting camera permission…";
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "environment" } },
-            audio: false
-          });
-          v.srcObject = stream;
-          status.textContent = "Camera running ✅";
-          btn.style.display = "none";
-        } catch (e) {
-          status.textContent = `Camera failed ❌ ${e.name}: ${e.message}`;
-        }
-      };
-    </script>
-  </body>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scene Viewer Test</title>
+</head>
+<body style="margin:0; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif;">
+  <a
+    href="intent://arvr.google.com/scene-viewer/1.0?file=https://YOUR-SITE.netlify.app/model.glb&mode=ar_preferred#Intent;scheme=https;package=com.google.ar.core;action=android.intent.action.VIEW;end;"
+    style="padding:16px 20px; background:#000; color:#fff; border-radius:12px; text-decoration:none;"
+  >
+    ▶ View in AR
+  </a>
+</body>
 </html>
