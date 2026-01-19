@@ -2,27 +2,34 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <title>Geo AR Autoplay</title>
 
     <!-- A-Frame -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 
-    <!-- AR.js (A-Frame build with GPS entities) -->
+    <!-- AR.js with GPS support -->
     <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
 
-    <!-- animation-mixer component (plays glTF/GLB animations) -->
+    <!-- animation-mixer for GLB animations -->
     <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
 
     <style>
-      body { margin: 0; overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      }
       .hud {
         position: fixed;
-        z-index: 9999;
-        left: 12px;
         top: 12px;
-        background: rgba(0,0,0,0.60);
-        color: #fff;
+        left: 12px;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.6);
+        color: white;
         padding: 10px 12px;
         border-radius: 12px;
         max-width: 320px;
@@ -30,8 +37,14 @@
         line-height: 1.35;
         backdrop-filter: blur(6px);
       }
-      .hud b { display: block; margin-bottom: 6px; }
-      .hud .small { opacity: 0.85; margin-top: 6px; }
+      .hud b {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .hud .small {
+        opacity: 0.85;
+        margin-top: 6px;
+      }
     </style>
   </head>
 
@@ -39,7 +52,9 @@
     <div class="hud" id="hud">
       <b>Geo AR</b>
       Waiting for permissions…
-      <div class="small">Tip: If alignment drifts, calibrate compass (figure-8).</div>
+      <div class="small">
+        Tip: If alignment drifts, calibrate compass (figure-8).
+      </div>
     </div>
 
     <a-scene
@@ -51,14 +66,9 @@
       <!-- GPS + compass camera -->
       <a-camera gps-new-camera="gpsMinDistance: 5" rotation-reader></a-camera>
 
-      <!--
-        Model anchored to target coordinates.
-        - scale is 1:1 (assuming GLB units are meters)
-        - animation-mixer autoplays the first clip
-      -->
+      <!-- 1:1 scale animated model (ALWAYS VISIBLE, AUTOPLAY) -->
       <a-entity
         id="arModel"
-        visible="false"
         gps-new-entity-place="
           latitude: 39.3286103943382;
           longitude: -76.63466595528571;
@@ -72,17 +82,17 @@
     </a-scene>
 
     <script>
-      // ====== CONFIG ======
-      const TARGET = { lat: 39.3286103943382, lon: -76.63466595528571 };
-      const SHOW_WITHIN_METERS = 30;   // change to 10, 50, 100, etc.
-      const HIGH_ACCURACY = true;
+      const TARGET = {
+        lat: 39.3286103943382,
+        lon: -76.63466595528571
+      };
 
-      // ====== HUD + MODEL ======
       const hud = document.getElementById("hud");
-      const model = document.getElementById("arModel");
 
-      // ====== DISTANCE (Haversine) ======
-      function toRad(d) { return d * Math.PI / 180; }
+      function toRad(d) {
+        return d * Math.PI / 180;
+      }
+
       function distanceMeters(a, b) {
         const R = 6371000;
         const dLat = toRad(b.lat - a.lat);
@@ -91,14 +101,13 @@
         const lat2 = toRad(b.lat);
         const h =
           Math.sin(dLat / 2) ** 2 +
-          Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+          Math.cos(lat1) *
+            Math.cos(lat2) *
+            Math.sin(dLon / 2) ** 2;
         return 2 * R * Math.asin(Math.sqrt(h));
       }
 
-      // ====== GEO WATCH ======
-      if (!("geolocation" in navigator)) {
-        hud.innerHTML = `<b>Geo AR</b>Geolocation not available on this device/browser.`;
-      } else {
+      if ("geolocation" in navigator) {
         navigator.geolocation.watchPosition(
           (pos) => {
             const me = {
@@ -106,41 +115,38 @@
               lon: pos.coords.longitude
             };
 
-            const accuracy = pos.coords.accuracy; // meters (estimated)
             const dist = distanceMeters(me, TARGET);
-
-            const isNear = dist <= SHOW_WITHIN_METERS;
-
-            // Show/hide model based on distance
-            model.setAttribute("visible", isNear);
+            const accuracy = pos.coords.accuracy;
 
             hud.innerHTML = `
               <b>Geo AR</b>
               <div><b>Distance:</b> ${dist.toFixed(1)} m</div>
-              <div><b>GPS accuracy:</b> ${accuracy ? accuracy.toFixed(0) : "?"} m</div>
-              <div><b>Status:</b> ${isNear ? "Model ON (autoplay)" : `Move within ${SHOW_WITHIN_METERS}m`}</div>
-              <div class="small">Tip: Stand still a moment. Compass drift is normal outdoors.</div>
+              <div><b>GPS accuracy:</b> ${
+                accuracy ? accuracy.toFixed(0) : "?"
+              } m</div>
+              <div class="small">
+                Model visible at all distances (autoplay enabled).
+              </div>
             `;
           },
           (err) => {
             hud.innerHTML = `
               <b>Geo AR</b>
               <div>Location error: ${err.message}</div>
-              <div class="small">Check permissions for Camera + Location, then reload.</div>
+              <div class="small">
+                Check camera & location permissions, then reload.
+              </div>
             `;
           },
           {
-            enableHighAccuracy: HIGH_ACCURACY,
+            enableHighAccuracy: true,
             maximumAge: 1000,
             timeout: 15000
           }
         );
+      } else {
+        hud.innerHTML = `<b>Geo AR</b>Geolocation not supported.`;
       }
-
-      // Optional: log when model is ready
-      model.addEventListener("model-loaded", () => {
-        console.log("GLB loaded.");
-      });
     </script>
   </body>
 </html>
