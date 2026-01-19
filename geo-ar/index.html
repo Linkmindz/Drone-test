@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Geo AR Autoplay</title>
+
+    <!-- A-Frame -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+    <!-- AR.js (A-Frame build with GPS entities) -->
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+
+    <!-- animation-mixer component (plays glTF/GLB animations) -->
+    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
+
+    <style>
+      body { margin: 0; overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+      .hud {
+        position: fixed;
+        z-index: 9999;
+        left: 12px;
+        top: 12px;
+        background: rgba(0,0,0,0.60);
+        color: #fff;
+        padding: 10px 12px;
+        border-radius: 12px;
+        max-width: 320px;
+        font-size: 14px;
+        line-height: 1.35;
+        backdrop-filter: blur(6px);
+      }
+      .hud b { display: block; margin-bottom: 6px; }
+      .hud .small { opacity: 0.85; margin-top: 6px; }
+    </style>
+  </head>
+
+  <body>
+    <div class="hud" id="hud">
+      <b>Geo AR</b>
+      Waiting for permissions…
+      <div class="small">Tip: If alignment drifts, calibrate compass (figure-8).</div>
+    </div>
+
+    <a-scene
+      embedded
+      vr-mode-ui="enabled: false"
+      renderer="antialias: true; colorManagement: true"
+      arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
+    >
+      <!-- GPS + compass camera -->
+      <a-camera gps-new-camera="gpsMinDistance: 5" rotation-reader></a-camera>
+
+      <!--
+        Model anchored to target coordinates.
+        - scale is 1:1 (assuming GLB units are meters)
+        - animation-mixer autoplays the first clip
+      -->
+      <a-entity
+        id="arModel"
+        visible="false"
+        gps-new-entity-place="
+          latitude: 39.3286103943382;
+          longitude: -76.63466595528571;
+        "
+        gltf-model="./model.glb"
+        animation-mixer="loop: repeat; timeScale: 1"
+        scale="1 1 1"
+        position="0 0 0"
+        rotation="0 180 0"
+      ></a-entity>
+    </a-scene>
+
+    <script>
+      // ====== CONFIG ======
+      const TARGET = { lat: 39.3286103943382, lon: -76.63466595528571 };
+      const SHOW_WITHIN_METERS = 30;   // change to 10, 50, 100, etc.
+      const HIGH_ACCURACY = true;
+
+      // ====== HUD + MODEL ======
+      const hud = document.getElementById("hud");
+      const model = document.getElementById("arModel");
+
+      // ====== DISTANCE (Haversine) ======
+      function toRad(d) { return d * Math.PI / 180; }
+      function distanceMeters(a, b) {
+        const R = 6371000;
+        const dLat = toRad(b.lat - a.lat);
+        const dLon = toRad(b.lon - a.lon);
+        const lat1 = toRad(a.lat);
+        const lat2 = toRad(b.lat);
+        const h =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(h));
+      }
+
+      // ====== GEO WATCH ======
+      if (!("geolocation" in navigator)) {
+        hud.innerHTML = `<b>Geo AR</b>Geolocation not available on this device/browser.`;
+      } else {
+        navigator.geolocation.watchPosition(
+          (pos) => {
+            const me = {
+              lat: pos.coords.latitude,
+              lon: pos.coords.longitude
+            };
+
+            const accuracy = pos.coords.accuracy; // meters (estimated)
+            const dist = distanceMeters(me, TARGET);
+
+            const isNear = dist <= SHOW_WITHIN_METERS;
+
+            // Show/hide model based on distance
+            model.setAttribute("visible", isNear);
+
+            hud.innerHTML = `
+              <b>Geo AR</b>
+              <div><b>Distance:</b> ${dist.toFixed(1)} m</div>
+              <div><b>GPS accuracy:</b> ${accuracy ? accuracy.toFixed(0) : "?"} m</div>
+              <div><b>Status:</b> ${isNear ? "Model ON (autoplay)" : `Move within ${SHOW_WITHIN_METERS}m`}</div>
+              <div class="small">Tip: Stand still a moment. Compass drift is normal outdoors.</div>
+            `;
+          },
+          (err) => {
+            hud.innerHTML = `
+              <b>Geo AR</b>
+              <div>Location error: ${err.message}</div>
+              <div class="small">Check permissions for Camera + Location, then reload.</div>
+            `;
+          },
+          {
+            enableHighAccuracy: HIGH_ACCURACY,
+            maximumAge: 1000,
+            timeout: 15000
+          }
+        );
+      }
+
+      // Optional: log when model is ready
+      model.addEventListener("model-loaded", () => {
+        console.log("GLB loaded.");
+      });
+    </script>
+  </body>
+</html>
