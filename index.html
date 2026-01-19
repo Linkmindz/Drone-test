@@ -3,159 +3,38 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Geo AR Autoplay</title>
-
-    <!-- A-Frame -->
+    <title>AR Cube Test</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-
-    <!-- AR.js with GPS support -->
     <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
-
-    <!-- animation-mixer for GLB animations -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
-
     <style>
-      body { margin: 0; overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-      .hud {
-        position: fixed;
-        top: 12px;
-        left: 12px;
-        z-index: 9999;
-        background: rgba(0,0,0,0.65);
-        color: white;
-        padding: 10px 12px;
-        border-radius: 12px;
-        max-width: 340px;
-        font-size: 14px;
-        line-height: 1.35;
-        backdrop-filter: blur(6px);
-      }
-      .hud b { display: block; margin-bottom: 6px; }
-      .small { opacity: 0.85; margin-top: 6px; }
-      .ok { color: #7CFF7C; font-weight: 600; }
-      .bad { color: #FF8080; font-weight: 600; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      body { margin:0; overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+      .hud { position:fixed; top:12px; left:12px; z-index:9999; background:rgba(0,0,0,.65); color:#fff; padding:10px 12px; border-radius:12px; }
     </style>
   </head>
-
   <body>
-    <div class="hud" id="hud">
-      <b>Geo AR</b>
-      Waiting for permissions…
-      <div class="small">Tip: If alignment drifts, calibrate compass (figure-8).</div>
-    </div>
+    <div class="hud" id="hud">Loading… if you don’t get a camera prompt, you’re in a blocked browser.</div>
 
     <a-scene
       embedded
-      vr-mode-ui="enabled: false"
-      renderer="antialias: true; colorManagement: true"
-      arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
+      vr-mode-ui="enabled:false"
+      renderer="antialias:true; colorManagement:true"
+      arjs="sourceType: webcam; videoTexture:true; debugUIEnabled:false;"
     >
-      <!-- Lights -->
-      <a-entity light="type: ambient; intensity: 1.0"></a-entity>
-      <a-entity light="type: directional; intensity: 0.9" position="1 2 1"></a-entity>
+      <a-entity light="type: ambient; intensity: 1.2"></a-entity>
+      <a-entity light="type: directional; intensity: 1.0" position="1 2 1"></a-entity>
 
-      <!-- GPS + compass camera -->
-      <a-camera gps-new-camera="gpsMinDistance: 0.5" rotation-reader></a-camera>
+      <!-- Regular camera (no GPS) -->
+      <a-camera position="0 1.6 0"></a-camera>
 
-      <!-- GEO model (anchored to lat/lon) -->
-      <a-entity
-        id="arModelGeo"
-        gps-new-entity-place="
-          latitude: 39.328784154649966;
-          longitude: -76.6339317005811;
-        "
-        gltf-model="./model.glb"
-        animation-mixer="loop: repeat; timeScale: 1"
-        scale="1 1 1"
-        position="0 0 0"
-        rotation="0 180 0"
-      ></a-entity>
-
-      <!-- DEBUG reference box (so you know where you're looking) -->
-      <a-box
-        position="0 2 -30"
-        depth="2"
-        height="2"
-        width="2"
-        material="color: red; opacity: 0.9"
-      ></a-box>
-
-      <!-- DEBUG model (30m in front — better for a 20m-wide model) -->
-      <a-entity
-        id="arModelDebug"
-        gltf-model="./model.glb"
-        animation-mixer="loop: repeat; timeScale: 1"
-        position="0 0 -30"
-        scale="1 1 1"
-        rotation="0 0 0"
-      ></a-entity>
+      <!-- Big cube directly in front of camera -->
+      <a-box position="0 1.6 -2" width="1" height="1" depth="1" material="color: red; opacity: 0.95"></a-box>
     </a-scene>
 
     <script>
-      // ✅ FIXED: Proper object keys (lat + lon)
-      // ✅ MATCHED: Same coordinates used for both HUD distance + gps-new-entity-place
-      const TARGET = { lat: 39.328784154649966, lon: -76.6339317005811 };
-
       const hud = document.getElementById("hud");
-      const geoModel = document.getElementById("arModelGeo");
-      const debugModel = document.getElementById("arModelDebug");
-
-      function toRad(d) { return d * Math.PI / 180; }
-      function distanceMeters(a, b) {
-        const R = 6371000;
-        const dLat = toRad(b.lat - a.lat);
-        const dLon = toRad(b.lon - a.lon);
-        const lat1 = toRad(a.lat);
-        const lat2 = toRad(b.lat);
-        const h =
-          Math.sin(dLat/2)**2 +
-          Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
-        return 2 * R * Math.asin(Math.sqrt(h));
-      }
-
-      // Show if GLB loads / fails
-      function attachModelListeners(el, label) {
-        el.addEventListener("model-loaded", () => {
-          hud.innerHTML += `<div class="small ok">✅ ${label}: model-loaded</div>`;
-        });
-        el.addEventListener("model-error", (e) => {
-          console.log(`${label} model-error`, e);
-          hud.innerHTML += `<div class="small bad">❌ ${label}: model-error (GLB not loading)</div>`;
-        });
-      }
-      attachModelListeners(geoModel, "Geo model");
-      attachModelListeners(debugModel, "Debug model");
-
-      window.addEventListener("error", (e) => console.log("Window error:", e));
-
-      if ("geolocation" in navigator) {
-        navigator.geolocation.watchPosition(
-          (pos) => {
-            const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-            const dist = distanceMeters(me, TARGET);
-            const accuracy = pos.coords.accuracy;
-
-            hud.innerHTML = `
-              <b>Geo AR</b>
-              <div><b>Distance:</b> <span class="mono">${dist.toFixed(1)} m</span></div>
-              <div><b>GPS accuracy:</b> <span class="mono">${accuracy ? accuracy.toFixed(0) : "?"} m</span></div>
-              <div class="small">Red cube + debug model should be ~30m in front of you.</div>
-              <div class="small">If you see the red cube but not the model: pivot/material issue.</div>
-            `;
-          },
-          (err) => {
-            hud.innerHTML = `
-              <b>Geo AR</b>
-              <div class="bad">Location error: ${err.message}</div>
-              <div class="small">Check camera & location permissions, then reload.</div>
-            `;
-          },
-          { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
-        );
-      } else {
-        hud.innerHTML = `<b>Geo AR</b><div class="bad">Geolocation not supported.</div>`;
-      }
+      setTimeout(() => {
+        hud.textContent = "If you see a red cube in camera view, rendering works ✅";
+      }, 1500);
     </script>
   </body>
 </html>
