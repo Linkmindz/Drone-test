@@ -1,34 +1,178 @@
 <!doctype html>
 <html>
   <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AR Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>AR (Android)</title>
 
     <!-- Google Model Viewer -->
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 
     <style>
-      body {
-        margin: 0;
-        background: #111;
+      :root { color-scheme: dark; }
+      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0b0b0f; color:#fff; }
+
+      .hud {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        z-index: 10;
+        background: rgba(0,0,0,0.65);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 14px;
+        padding: 12px 12px;
+        backdrop-filter: blur(8px);
+        max-width: 520px;
+        margin: 0 auto;
       }
+
+      .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .title { font-weight: 700; font-size: 14px; letter-spacing: 0.2px; }
+      .pill {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.10);
+        font-size: 13px;
+      }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      .small { opacity: 0.85; font-size: 12px; margin-top: 8px; line-height: 1.35; }
+
+      .btn {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.12);
+        color: #fff;
+        font-weight: 700;
+        font-size: 13px;
+      }
+
       model-viewer {
         width: 100vw;
         height: 100vh;
+        background: radial-gradient(circle at 50% 20%, rgba(255,255,255,0.08), rgba(0,0,0,0) 55%),
+                    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0));
       }
     </style>
   </head>
 
   <body>
+    <div class="hud">
+      <div class="row" style="justify-content: space-between;">
+        <div class="title">AR (Android)</div>
+        <div class="pill" id="statusPill">Ready</div>
+      </div>
+
+      <div class="row" style="margin-top: 10px;">
+        <div class="pill">Distance: <span class="mono" id="distance">…</span> m</div>
+        <div class="pill">Accuracy: <span class="mono" id="accuracy">…</span> m</div>
+        <button class="btn" id="arBtn">View in AR</button>
+      </div>
+
+      <div class="small" id="hint">
+        Animation is set to autoplay + loop. Web preview is locked (no pinch/zoom/spin). In AR, you can move your camera normally.
+      </div>
+    </div>
+
+    <!--
+      Locked web preview:
+        - NO camera-controls (prevents spin/zoom/drag in the web preview)
+        - Fixed camera-orbit/FOV so it stays put
+      Animation:
+        - autoplay + animation-loop (plays/loops if your GLB has animations)
+        - If you have multiple clips, add: animation-name="ClipName"
+    -->
     <model-viewer
+      id="mv"
       src="./model.glb"
       ar
       ar-modes="scene-viewer webxr"
-      camera-controls
       autoplay
+      animation-loop
+      reveal="auto"
       shadow-intensity="1"
       exposure="1"
-    >
-    </model-viewer>
+      interaction-prompt="none"
+
+      camera-orbit="0deg 75deg 6m"
+      min-camera-orbit="0deg 75deg 6m"
+      max-camera-orbit="0deg 75deg 6m"
+      min-field-of-view="30deg"
+      max-field-of-view="30deg"
+    ></model-viewer>
+
+    <script>
+      // Optional distance display only (does NOT gate AR)
+      const TARGET = { lat: 39.3286103943382, lon: -76.63466595528571 };
+
+      const distanceEl = document.getElementById("distance");
+      const accuracyEl = document.getElementById("accuracy");
+      const statusPill = document.getElementById("statusPill");
+      const hintEl = document.getElementById("hint");
+      const arBtn = document.getElementById("arBtn");
+      const mv = document.getElementById("mv");
+
+      function toRad(d) { return d * Math.PI / 180; }
+      function distanceMeters(a, b) {
+        const R = 6371000;
+        const dLat = toRad(b.lat - a.lat);
+        const dLon = toRad(b.lon - a.lon);
+        const lat1 = toRad(a.lat);
+        const lat2 = toRad(b.lat);
+        const h =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(h));
+      }
+
+      // Launch AR via model-viewer
+      arBtn.addEventListener("click", async () => {
+        try {
+          statusPill.textContent = "Launching AR…";
+          if (typeof mv.activateAR === "function") {
+            await mv.activateAR();
+          } else {
+            const internalBtn = mv.shadowRoot && mv.shadowRoot.querySelector(".ar-button");
+            if (internalBtn) internalBtn.click();
+          }
+          statusPill.textContent = "Ready";
+        } catch (e) {
+          statusPill.textContent = "AR failed";
+          hintEl.textContent =
+            "Could not launch AR. Make sure Google Play Services for AR (ARCore) is installed/enabled.";
+          console.log(e);
+        }
+      });
+
+      // Log available animations to console (helpful if you have multiple clips)
+      mv.addEventListener("load", () => {
+        console.log("Model loaded. availableAnimations =", mv.availableAnimations);
+      });
+
+      // Distance display (optional)
+      if ("geolocation" in navigator) {
+        navigator.geolocation.watchPosition(
+          (pos) => {
+            const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+            const dist = distanceMeters(me, TARGET);
+            const acc = pos.coords.accuracy;
+
+            distanceEl.textContent = dist.toFixed(1);
+            accuracyEl.textContent = acc ? acc.toFixed(0) : "?";
+          },
+          (err) => {
+            statusPill.textContent = "Location blocked";
+            hintEl.textContent =
+              "Location permission denied/blocked. AR still works; distance display is disabled.";
+            console.log(err);
+          },
+          { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
+        );
+      } else {
+        statusPill.textContent = "No GPS";
+      }
+    </script>
   </body>
 </html>
