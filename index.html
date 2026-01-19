@@ -34,6 +34,7 @@
       .small { opacity: 0.85; margin-top: 6px; }
       .ok { color: #7CFF7C; font-weight: 600; }
       .bad { color: #FF8080; font-weight: 600; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     </style>
   </head>
 
@@ -50,7 +51,7 @@
       renderer="antialias: true; colorManagement: true"
       arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
     >
-      <!-- Lights (without these, many models look invisible/black) -->
+      <!-- Lights -->
       <a-entity light="type: ambient; intensity: 1.0"></a-entity>
       <a-entity light="type: directional; intensity: 0.9" position="1 2 1"></a-entity>
 
@@ -61,8 +62,8 @@
       <a-entity
         id="arModelGeo"
         gps-new-entity-place="
-          latitude: 39.3286103943382;
-          longitude: -76.63466595528571;
+          latitude: 39.328784154649966;
+          longitude: -76.6339317005811;
         "
         gltf-model="./model.glb"
         animation-mixer="loop: repeat; timeScale: 1"
@@ -71,21 +72,32 @@
         rotation="0 180 0"
       ></a-entity>
 
-      <!-- DEBUG model (always 3m in front of camera) -->
+      <!-- DEBUG reference box (so you know where you're looking) -->
+      <a-box
+        position="0 2 -30"
+        depth="2"
+        height="2"
+        width="2"
+        material="color: red; opacity: 0.9"
+      ></a-box>
+
+      <!-- DEBUG model (30m in front — better for a 20m-wide model) -->
       <a-entity
         id="arModelDebug"
         gltf-model="./model.glb"
         animation-mixer="loop: repeat; timeScale: 1"
-        position="0 0 -3"
+        position="0 0 -30"
         scale="1 1 1"
         rotation="0 0 0"
       ></a-entity>
     </a-scene>
 
     <script>
-      const TARGET = { lat: 39.328784154649966, -76.6339317005811 };
-      const hud = document.getElementById("hud");
+      // ✅ FIXED: Proper object keys (lat + lon)
+      // ✅ MATCHED: Same coordinates used for both HUD distance + gps-new-entity-place
+      const TARGET = { lat: 39.328784154649966, lon: -76.6339317005811 };
 
+      const hud = document.getElementById("hud");
       const geoModel = document.getElementById("arModelGeo");
       const debugModel = document.getElementById("arModelDebug");
 
@@ -115,10 +127,7 @@
       attachModelListeners(geoModel, "Geo model");
       attachModelListeners(debugModel, "Debug model");
 
-      // Also log any scene-level errors
-      window.addEventListener("error", (e) => {
-        console.log("Window error:", e);
-      });
+      window.addEventListener("error", (e) => console.log("Window error:", e));
 
       if ("geolocation" in navigator) {
         navigator.geolocation.watchPosition(
@@ -129,10 +138,10 @@
 
             hud.innerHTML = `
               <b>Geo AR</b>
-              <div><b>Distance:</b> ${dist.toFixed(1)} m</div>
-              <div><b>GPS accuracy:</b> ${accuracy ? accuracy.toFixed(0) : "?"} m</div>
-              <div class="small">Debug model should be 3m in front of you.</div>
-              <div class="small">If you see debug but not geo: geo placement/bearing is the issue.</div>
+              <div><b>Distance:</b> <span class="mono">${dist.toFixed(1)} m</span></div>
+              <div><b>GPS accuracy:</b> <span class="mono">${accuracy ? accuracy.toFixed(0) : "?"} m</span></div>
+              <div class="small">Red cube + debug model should be ~30m in front of you.</div>
+              <div class="small">If you see the red cube but not the model: pivot/material issue.</div>
             `;
           },
           (err) => {
