@@ -2,10 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Geo AR Autoplay</title>
 
     <!-- A-Frame -->
@@ -18,33 +15,25 @@
     <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.5.2/dist/aframe-extras.min.js"></script>
 
     <style>
-      body {
-        margin: 0;
-        overflow: hidden;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      }
+      body { margin: 0; overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
       .hud {
         position: fixed;
         top: 12px;
         left: 12px;
         z-index: 9999;
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(0,0,0,0.65);
         color: white;
         padding: 10px 12px;
         border-radius: 12px;
-        max-width: 320px;
+        max-width: 340px;
         font-size: 14px;
         line-height: 1.35;
         backdrop-filter: blur(6px);
       }
-      .hud b {
-        display: block;
-        margin-bottom: 6px;
-      }
-      .hud .small {
-        opacity: 0.85;
-        margin-top: 6px;
-      }
+      .hud b { display: block; margin-bottom: 6px; }
+      .small { opacity: 0.85; margin-top: 6px; }
+      .ok { color: #7CFF7C; font-weight: 600; }
+      .bad { color: #FF8080; font-weight: 600; }
     </style>
   </head>
 
@@ -52,9 +41,7 @@
     <div class="hud" id="hud">
       <b>Geo AR</b>
       Waiting for permissions…
-      <div class="small">
-        Tip: If alignment drifts, calibrate compass (figure-8).
-      </div>
+      <div class="small">Tip: If alignment drifts, calibrate compass (figure-8).</div>
     </div>
 
     <a-scene
@@ -63,12 +50,16 @@
       renderer="antialias: true; colorManagement: true"
       arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false;"
     >
-      <!-- GPS + compass camera -->
-      <a-camera gps-new-camera="gpsMinDistance: 5" rotation-reader></a-camera>
+      <!-- Lights (without these, many models look invisible/black) -->
+      <a-entity light="type: ambient; intensity: 1.0"></a-entity>
+      <a-entity light="type: directional; intensity: 0.9" position="1 2 1"></a-entity>
 
-      <!-- 1:1 scale animated model (ALWAYS VISIBLE, AUTOPLAY) -->
+      <!-- GPS + compass camera -->
+      <a-camera gps-new-camera="gpsMinDistance: 0.5" rotation-reader></a-camera>
+
+      <!-- GEO model (anchored to lat/lon) -->
       <a-entity
-        id="arModel"
+        id="arModelGeo"
         gps-new-entity-place="
           latitude: 39.3286103943382;
           longitude: -76.63466595528571;
@@ -79,20 +70,26 @@
         position="0 0 0"
         rotation="0 180 0"
       ></a-entity>
+
+      <!-- DEBUG model (always 3m in front of camera) -->
+      <a-entity
+        id="arModelDebug"
+        gltf-model="./model.glb"
+        animation-mixer="loop: repeat; timeScale: 1"
+        position="0 0 -3"
+        scale="1 1 1"
+        rotation="0 0 0"
+      ></a-entity>
     </a-scene>
 
     <script>
-      const TARGET = {
-        lat: 39.3286103943382,
-        lon: -76.63466595528571
-      };
-
+      const TARGET = { lat: 39.3286103943382, lon: -76.63466595528571 };
       const hud = document.getElementById("hud");
 
-      function toRad(d) {
-        return d * Math.PI / 180;
-      }
+      const geoModel = document.getElementById("arModelGeo");
+      const debugModel = document.getElementById("arModelDebug");
 
+      function toRad(d) { return d * Math.PI / 180; }
       function distanceMeters(a, b) {
         const R = 6371000;
         const dLat = toRad(b.lat - a.lat);
@@ -100,52 +97,55 @@
         const lat1 = toRad(a.lat);
         const lat2 = toRad(b.lat);
         const h =
-          Math.sin(dLat / 2) ** 2 +
-          Math.cos(lat1) *
-            Math.cos(lat2) *
-            Math.sin(dLon / 2) ** 2;
+          Math.sin(dLat/2)**2 +
+          Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
         return 2 * R * Math.asin(Math.sqrt(h));
       }
+
+      // Show if GLB loads / fails
+      function attachModelListeners(el, label) {
+        el.addEventListener("model-loaded", () => {
+          hud.innerHTML += `<div class="small ok">✅ ${label}: model-loaded</div>`;
+        });
+        el.addEventListener("model-error", (e) => {
+          console.log(`${label} model-error`, e);
+          hud.innerHTML += `<div class="small bad">❌ ${label}: model-error (GLB not loading)</div>`;
+        });
+      }
+      attachModelListeners(geoModel, "Geo model");
+      attachModelListeners(debugModel, "Debug model");
+
+      // Also log any scene-level errors
+      window.addEventListener("error", (e) => {
+        console.log("Window error:", e);
+      });
 
       if ("geolocation" in navigator) {
         navigator.geolocation.watchPosition(
           (pos) => {
-            const me = {
-              lat: pos.coords.latitude,
-              lon: pos.coords.longitude
-            };
-
+            const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
             const dist = distanceMeters(me, TARGET);
             const accuracy = pos.coords.accuracy;
 
             hud.innerHTML = `
               <b>Geo AR</b>
               <div><b>Distance:</b> ${dist.toFixed(1)} m</div>
-              <div><b>GPS accuracy:</b> ${
-                accuracy ? accuracy.toFixed(0) : "?"
-              } m</div>
-              <div class="small">
-                Model visible at all distances (autoplay enabled).
-              </div>
+              <div><b>GPS accuracy:</b> ${accuracy ? accuracy.toFixed(0) : "?"} m</div>
+              <div class="small">Debug model should be 3m in front of you.</div>
+              <div class="small">If you see debug but not geo: geo placement/bearing is the issue.</div>
             `;
           },
           (err) => {
             hud.innerHTML = `
               <b>Geo AR</b>
-              <div>Location error: ${err.message}</div>
-              <div class="small">
-                Check camera & location permissions, then reload.
-              </div>
+              <div class="bad">Location error: ${err.message}</div>
+              <div class="small">Check camera & location permissions, then reload.</div>
             `;
           },
-          {
-            enableHighAccuracy: true,
-            maximumAge: 1000,
-            timeout: 15000
-          }
+          { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
         );
       } else {
-        hud.innerHTML = `<b>Geo AR</b>Geolocation not supported.`;
+        hud.innerHTML = `<b>Geo AR</b><div class="bad">Geolocation not supported.</div>`;
       }
     </script>
   </body>
